@@ -2,14 +2,14 @@
   "nodes": [
     {
       "nodeData": {
-        "codeText": "\u0022\u0022\u0022Every path and setting the three ColorAI pipelines share.\n\nAll folders are resolved against the project folder - the one holding\nColorAI.catnip - so the same code works in a venv on C:, from a src/ folder of\ngenerated sources, and in a Docker run, where the project sits in /app.\n\u0022\u0022\u0022\n\nimport os\nfrom dataclasses import dataclass, field\nfrom pathlib import Path\nfrom typing import Tuple\n\n\ndef _project_dir() -\u003E Path:\n\t\u0022\u0022\u0022The folder with the .catnip: this file\u0027s own, or the one above it.\u0022\u0022\u0022\n\there = Path(os.path.dirname(os.path.abspath(__file__)))\n\tif not any(here.glob(\u0022*.catnip\u0022)) and here.parent != here and any(here.parent.glob(\u0022*.catnip\u0022)):\n\t\treturn here.parent\n\treturn here\n\n\n@dataclass\nclass ColorAIConfig:\n\tproject_dir: Path = field(default_factory=_project_dir)\n\n\t# Folder names, relative to the project folder.\n\tmodels_folder: str = \u0022models\u0022\n\tinput_folder: str = \u0022input\u0022\n\toutput_folder: str = \u0022output\u0022\n\tphotos_folder: str = \u0022photos\u0022\n\n\t# DDColor (ICCV 2023), \u0022modelscope\u0022 checkpoint: ConvNeXt-L encoder, 512 px.\n\t# The weights come from the authors\u0027 own Hugging Face repo, the network code\n\t# from their GitHub repo, pinned to one commit so a later push cannot change\n\t# what runs here.\n\tweights_repo: str = \u0022piddnad/ddcolor_modelscope\u0022\n\tweights_files: Tuple[str, ...] = (\u0022pytorch_model.bin\u0022, \u0022config.json\u0022)\n\tcode_repo: str = \u0022piddnad/DDColor\u0022\n\tcode_commit: str = \u00222adb63f2656ac41cbdf7b894cddd94121a3faf13\u0022\n\tcode_packages: Tuple[str, ...] = (\u0022ddcolor\u0022, \u0022basicsr\u0022)\n\tinput_size: int = 512\n\n\t# Optional aging pipeline: \u0022sepia\u0022 or \u0022grayscale\u0022. A run argument overrides it.\n\tdefault_tone: str = \u0022sepia\u0022\n\tjpeg_quality: int = 95\n\n\timage_extensions: Tuple[str, ...] = (\u0022.jpg\u0022, \u0022.jpeg\u0022, \u0022.png\u0022, \u0022.bmp\u0022, \u0022.tif\u0022, \u0022.tiff\u0022, \u0022.webp\u0022)\n\n\t@property\n\tdef models_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.models_folder\n\n\t@property\n\tdef weights_dir(self) -\u003E Path:\n\t\treturn self.models_dir / self.weights_repo.split(\u0022/\u0022)[-1]\n\n\t@property\n\tdef weights_path(self) -\u003E Path:\n\t\treturn self.weights_dir / self.weights_files[0]\n\n\t@property\n\tdef code_dir(self) -\u003E Path:\n\t\treturn self.models_dir / \u0022ddcolor_code\u0022\n\n\t@property\n\tdef input_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.input_folder\n\n\t@property\n\tdef output_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.output_folder\n\n\t@property\n\tdef photos_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.photos_folder\n\n\tdef weights_url(self, file_name: str) -\u003E str:\n\t\treturn \u0022https://huggingface.co/%s/resolve/main/%s\u0022 % (self.weights_repo, file_name)\n\n\tdef code_url(self) -\u003E str:\n\t\treturn \u0022https://codeload.github.com/%s/zip/%s\u0022 % (self.code_repo, self.code_commit)\n\n\tdef is_image(self, path: Path) -\u003E bool:\n\t\treturn path.suffix.lower() in self.image_extensions\n\n\tdef ensure_dirs(self) -\u003E \u0022ColorAIConfig\u0022:\n\t\tfor folder in (self.models_dir, self.input_dir, self.output_dir, self.photos_dir):\n\t\t\tfolder.mkdir(parents=True, exist_ok=True)\n\t\treturn self\n",
+        "codeText": "\u0022\u0022\u0022Every path and setting the three ColorAI pipelines share.\n\nAll folders are resolved against the project folder - the one holding\nColorAI.catnip - so the same code works in a venv on C:, from a src/ folder of\ngenerated sources, and in a Docker run, where the project sits in /app.\n\nEvery setting is a parameter of __init__ with a default, so CatNip\u0027s\nINITIALISER panel lists and edits them all; main constructs ColorAIConfig()\nwithout arguments, so the values set there are the ones a run uses.\n\u0022\u0022\u0022\n\nimport os\nfrom pathlib import Path\n\nfrom ColorGrading import ColorGrading\n\n\ndef _project_dir() -\u003E Path:\n\t\u0022\u0022\u0022The folder with the .catnip: this file\u0027s own, or the one above it.\u0022\u0022\u0022\n\there = Path(os.path.dirname(os.path.abspath(__file__)))\n\tif not any(here.glob(\u0022*.catnip\u0022)) and here.parent != here and any(here.parent.glob(\u0022*.catnip\u0022)):\n\t\treturn here.parent\n\treturn here\n\n\nclass ColorAIConfig:\n\tTONES = (\u0022sepia\u0022, \u0022grayscale\u0022)\n\n\tdef __init__(self, project_dir: str=\u0022\u0022, models_folder: str=\u0022models\u0022, input_folder: str=\u0022input\u0022, output_folder: str=\u0022output\u0022, photos_folder: str=\u0022photos\u0022, weights_repo: str=\u0022piddnad/ddcolor_modelscope\u0022, weights_files: tuple=(\u0022pytorch_model.bin\u0022, \u0022config.json\u0022), code_repo: str=\u0022piddnad/DDColor\u0022, code_commit: str=\u00222adb63f2656ac41cbdf7b894cddd94121a3faf13\u0022, code_packages: tuple=(\u0022ddcolor\u0022, \u0022basicsr\u0022), input_size: int=512, default_tone: str=\u0022sepia\u0022, jpeg_quality: int=95, temperature: float=0.0, tint: float=30.0, saturation: float=1.0, vibrance: float=0.0, hue_shift: float=0.0, highlight_warmth: float=0.0, shadow_warmth: float=0.0, cast_removal: float=0.0, image_extensions: tuple=(\u0022.jpg\u0022, \u0022.jpeg\u0022, \u0022.png\u0022, \u0022.bmp\u0022, \u0022.tif\u0022, \u0022.tiff\u0022, \u0022.webp\u0022)):\n\t\t# Empty = the folder holding ColorAI.catnip.\n\t\tself.project_dir = Path(project_dir) if project_dir else _project_dir()\n\n\t\t# Folder names, relative to the project folder.\n\t\tself.models_folder = models_folder\n\t\tself.input_folder = input_folder\n\t\tself.output_folder = output_folder\n\t\tself.photos_folder = photos_folder\n\n\t\t# DDColor (ICCV 2023), \u0022modelscope\u0022 checkpoint: ConvNeXt-L encoder, 512 px.\n\t\t# The weights come from the authors\u0027 own Hugging Face repo, the network code\n\t\t# from their GitHub repo, pinned to one commit so a later push cannot change\n\t\t# what runs here.\n\t\tself.weights_repo = weights_repo\n\t\tself.weights_files = tuple(weights_files)\n\t\tself.code_repo = code_repo\n\t\tself.code_commit = code_commit\n\t\tself.code_packages = tuple(code_packages)\n\t\tif input_size \u003C 64 or input_size % 32:\n\t\t\traise ValueError(\u0022input_size=%d - musi byc wielokrotnoscia 32, co najmniej 64 (zalecane 512)\u0022 % input_size)\n\t\tself.input_size = input_size\n\n\t\t# Optional aging pipeline. A run argument overrides it.\n\t\tif default_tone not in self.TONES:\n\t\t\traise ValueError(\u0022default_tone=\u0027%s\u0027 - dozwolone: %s\u0022 % (default_tone, \u0022, \u0022.join(self.TONES)))\n\t\tself.default_tone = default_tone\n\t\tif not 1 \u003C= jpeg_quality \u003C= 100:\n\t\t\traise ValueError(\u0022jpeg_quality=%d poza zakresem 1..100\u0022 % jpeg_quality)\n\t\tself.jpeg_quality = jpeg_quality\n\n\t\t# Colour correction after DDColor (KROK 2). Defaults change nothing; KROK 2\n\t\t# run arguments such as \u0022temperature=20 saturation=1.3\u0022 override them.\n\t\t# ColorGrading checks the ranges.\n\t\tself.grading = ColorGrading(\n\t\t\ttemperature=temperature, tint=tint, saturation=saturation, vibrance=vibrance,\n\t\t\thue_shift=hue_shift, highlight_warmth=highlight_warmth,\n\t\t\tshadow_warmth=shadow_warmth, cast_removal=cast_removal)\n\n\t\tself.image_extensions = tuple(e.lower() for e in image_extensions)\n\n\t@property\n\tdef models_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.models_folder\n\n\t@property\n\tdef weights_dir(self) -\u003E Path:\n\t\treturn self.models_dir / self.weights_repo.split(\u0022/\u0022)[-1]\n\n\t@property\n\tdef weights_path(self) -\u003E Path:\n\t\treturn self.weights_dir / self.weights_files[0]\n\n\t@property\n\tdef code_dir(self) -\u003E Path:\n\t\treturn self.models_dir / \u0022ddcolor_code\u0022\n\n\t@property\n\tdef input_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.input_folder\n\n\t@property\n\tdef output_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.output_folder\n\n\t@property\n\tdef photos_dir(self) -\u003E Path:\n\t\treturn self.project_dir / self.photos_folder\n\n\tdef weights_url(self, file_name: str) -\u003E str:\n\t\treturn \u0022https://huggingface.co/%s/resolve/main/%s\u0022 % (self.weights_repo, file_name)\n\n\tdef code_url(self) -\u003E str:\n\t\treturn \u0022https://codeload.github.com/%s/zip/%s\u0022 % (self.code_repo, self.code_commit)\n\n\tdef is_image(self, path: Path) -\u003E bool:\n\t\treturn path.suffix.lower() in self.image_extensions\n\n\tdef ensure_dirs(self) -\u003E \u0022ColorAIConfig\u0022:\n\t\tfor folder in (self.models_dir, self.input_dir, self.output_dir, self.photos_dir):\n\t\t\tfolder.mkdir(parents=True, exist_ok=True)\n\t\treturn self\n\n\tdef config(self):\n\t\treturn\n",
         "codeFile": "",
-        "maxInputNumber": 0,
-        "maxOutputNumber": 1,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "ColorAIConfig.md",
         "nodeCathegory": 3,
-        "id": 80,
+        "id": 1,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -24,13 +24,13 @@
           },
           "inputConnectionSettings": [],
           "selectedOutputConnectionSettings": {
-            "id": 108,
+            "id": 1,
             "title": "config",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 108,
+              "id": 1,
               "title": "config",
               "connecttionType": 0
             }
@@ -68,12 +68,12 @@
       "nodeData": {
         "codeText": "\u0022\u0022\u0022Reads and writes images with OpenCV, including paths with Polish letters.\n\ncv2.imread / cv2.imwrite cannot open \u0022C:\\\\Zdjecia\\\\Babcia_\u0141\u00F3d\u017A.jpg\u0022 on\nWindows - they silently return None. Going through numpy bytes avoids that.\n\u0022\u0022\u0022\n\nfrom pathlib import Path\n\nimport cv2\nimport numpy as np\n\n\nclass ImageFiles:\n\tdef __init__(self, jpeg_quality: int = 95):\n\t\tself.jpeg_quality = jpeg_quality\n\n\tdef read(self, path: Path) -\u003E np.ndarray:\n\t\t\u0022\u0022\u0022The image as a BGR uint8 array, EXIF rotation applied.\u0022\u0022\u0022\n\t\tdata = np.fromfile(str(path), dtype=np.uint8)\n\t\timage = cv2.imdecode(data, cv2.IMREAD_COLOR)\n\t\tif image is None:\n\t\t\traise ValueError(\u0022Nie da sie odczytac obrazu: %s\u0022 % path)\n\t\treturn image\n\n\tdef write(self, image: np.ndarray, path: Path) -\u003E Path:\n\t\t\u0022\u0022\u0022Saves a BGR uint8 array; the format follows the file extension.\u0022\u0022\u0022\n\t\tpath = Path(path)\n\t\tpath.parent.mkdir(parents=True, exist_ok=True)\n\t\tparams = []\n\t\tif path.suffix.lower() in (\u0022.jpg\u0022, \u0022.jpeg\u0022):\n\t\t\tparams = [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality]\n\t\tok, encoded = cv2.imencode(path.suffix, image, params)\n\t\tif not ok:\n\t\t\traise ValueError(\u0022Nie da sie zapisac obrazu jako %s\u0022 % path.suffix)\n\t\tencoded.tofile(str(path))\n\t\treturn path\n\n\tdef show(self, title: str, image: np.ndarray, max_width: int = 1600) -\u003E None:\n\t\t\u0022\u0022\u0022Puts the image in CatNip\u0027s Output tab.\n\n\t\tCatNip\u0027s runner captures cv2.imshow, in a venv and in Docker alike. A\n\t\tplain terminal with headless OpenCV has no window, so there it is skipped.\n\t\t\u0022\u0022\u0022\n\t\tif image.shape[1] \u003E max_width:\n\t\t\tscale = max_width / float(image.shape[1])\n\t\t\timage = cv2.resize(image, (max_width, int(image.shape[0] * scale)), interpolation=cv2.INTER_AREA)\n\t\ttry:\n\t\t\tcv2.imshow(title, image)\n\t\texcept cv2.error:\n\t\t\tpass\n\n\tdef preview(self, result_title: str, before: np.ndarray, after: np.ndarray) -\u003E None:\n\t\t\u0022\u0022\u0022The result on its own, then before and after side by side.\u0022\u0022\u0022\n\t\tself.show(result_title, after)\n\t\tself.show(\u0022Przed / po\u0022, np.hstack([before, after]))\n",
         "codeFile": "",
-        "maxInputNumber": 0,
-        "maxOutputNumber": 3,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "ImageFiles.md",
         "nodeCathegory": 3,
-        "id": 81,
+        "id": 2,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -88,23 +88,23 @@
           },
           "inputConnectionSettings": [],
           "selectedOutputConnectionSettings": {
-            "id": 109,
+            "id": 2,
             "title": "read",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 109,
+              "id": 2,
               "title": "read",
               "connecttionType": 0
             },
             {
-              "id": 110,
+              "id": 3,
               "title": "write",
               "connecttionType": 0
             },
             {
-              "id": 111,
+              "id": 4,
               "title": "show",
               "connecttionType": 0
             }
@@ -136,18 +136,18 @@
         "targetPath": ""
       },
       "locationX": 60,
-      "locationY": 621
+      "locationY": 619
     },
     {
       "nodeData": {
         "codeText": "\u0022\u0022\u0022Finds the photo picked in a File content block.\n\nCatNip writes a File content block\u0027s path into main only when Generate\nBlueprint runs, and the mains here are hand-written, so the pick is read\nstraight out of ColorAI.catnip (plain JSON): the node whose output connector\ncarries the given title holds the path in nodeData.codeText.\n\nIn a Docker run the Windows path does not exist - the container sees /app,\nnot C: - so the file is then looked up by name in the project folders. If the\nblock is empty or the file is nowhere, the newest image in a fallback folder is\nused, so a run never dies on a missing path.\n\u0022\u0022\u0022\n\nimport json\nimport os\nfrom pathlib import Path\nfrom typing import Iterable, List, Optional\n\nfrom ColorAIConfig import ColorAIConfig\n\n\nclass PhotoLocator:\n\tdef __init__(self, config: ColorAIConfig):\n\t\tself.config = config\n\n\tdef locate(self, connector: str, fallback_dirs: Iterable[Path]) -\u003E Path:\n\t\tpicked = self.path_from_block(connector)\n\t\tif picked:\n\t\t\tif os.path.isfile(picked):\n\t\t\t\treturn Path(picked)\n\t\t\tfound = self.find_by_name(os.path.basename(picked.replace(\u0022\\\\\u0022, \u0022/\u0022)))\n\t\t\tif found:\n\t\t\t\tprint(\u0022[Zdjecie] %s nie istnieje tutaj - uzywam %s\u0022 % (picked, found))\n\t\t\t\treturn found\n\t\t\tprint(\u0022[Zdjecie] Nie znaleziono %s\u0022 % picked)\n\n\t\tfolders = list(fallback_dirs)\n\t\tnewest = self.newest_image(folders)\n\t\tif newest:\n\t\t\tprint(\u0022[Zdjecie] Brak wyboru w bloku - biore najnowszy obraz: %s\u0022 % newest)\n\t\t\treturn newest\n\t\traise FileNotFoundError(\n\t\t\t\u0022Nie wskazano zdjecia. Wybierz plik w bloku File content (zlacze \u0027%s\u0027) \u0022\n\t\t\t\u0022albo wrzuc obraz do: %s\u0022 % (connector, \u0022, \u0022.join(str(f) for f in folders)))\n\n\tdef path_from_block(self, connector: str) -\u003E Optional[str]:\n\t\tproject = self.find_project()\n\t\tif project is None:\n\t\t\treturn None\n\t\ttry:\n\t\t\tdata = json.loads(project.read_text(encoding=\u0022utf-8-sig\u0022))\n\t\texcept (OSError, ValueError):\n\t\t\treturn None\n\t\tfor node in data.get(\u0022nodes\u0022, []):\n\t\t\tnode_data = node.get(\u0022nodeData\u0022, {})\n\t\t\toutputs = node_data.get(\u0022settings\u0022, {}).get(\u0022outputConnectionSettings\u0022, [])\n\t\t\tif any(o.get(\u0022title\u0022) == connector for o in outputs):\n\t\t\t\tpath = (node_data.get(\u0022codeText\u0022) or \u0022\u0022).strip().strip(\u0027\u0022\u0027)\n\t\t\t\treturn path or None\n\t\treturn None\n\n\tdef find_project(self) -\u003E Optional[Path]:\n\t\there = self.config.project_dir\n\t\tcandidates = [here]\n\t\tif here.parent != here and here.parent.parent != here.parent:\n\t\t\tcandidates.append(here.parent)\n\t\tfor folder in candidates:\n\t\t\tprojects = sorted(folder.glob(\u0022*.catnip\u0022))\n\t\t\tif projects:\n\t\t\t\treturn projects[0]\n\t\treturn None\n\n\tdef search_dirs(self) -\u003E List[Path]:\n\t\tc = self.config\n\t\treturn [d for d in (c.project_dir, c.photos_dir, c.input_dir) if d.is_dir()]\n\n\tdef find_by_name(self, name: str) -\u003E Optional[Path]:\n\t\tif not name:\n\t\t\treturn None\n\t\tfor folder in self.search_dirs():\n\t\t\tcandidate = folder / name\n\t\t\tif candidate.is_file():\n\t\t\t\treturn candidate\n\t\treturn None\n\n\tdef newest_image(self, folders: Iterable[Path]) -\u003E Optional[Path]:\n\t\timages = [p for f in folders if f.is_dir() for p in f.iterdir()\n\t\t\tif p.is_file() and self.config.is_image(p)]\n\t\treturn max(images, key=lambda p: p.stat().st_mtime) if images else None\n",
         "codeFile": "",
-        "maxInputNumber": 1,
-        "maxOutputNumber": 1,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "PhotoLocator.md",
         "nodeCathegory": 3,
-        "id": 82,
+        "id": 3,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -156,25 +156,25 @@
           "inputParametersEditorEnabled": true,
           "outputParametersEditorEnabled": true,
           "selectedInputConnectionSettings": {
-            "id": 112,
+            "id": 5,
             "title": "config",
             "connecttionType": 0
           },
           "inputConnectionSettings": [
             {
-              "id": 112,
+              "id": 5,
               "title": "config",
               "connecttionType": 0
             }
           ],
           "selectedOutputConnectionSettings": {
-            "id": 113,
+            "id": 6,
             "title": "locate",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 113,
+              "id": 6,
               "title": "locate",
               "connecttionType": 0
             }
@@ -212,12 +212,12 @@
       "nodeData": {
         "codeText": "\u0022\u0022\u0022Downloads the DDColor colorization model into models/.\n\nTwo things land on disk:\n\n- models/ddcolor_modelscope/  - the trained weights (~870 MB) and their config,\n  from the authors\u0027 Hugging Face repo piddnad/ddcolor_modelscope;\n- models/ddcolor_code/         - the network definition (the ddcolor and\n  basicsr packages) from github.com/piddnad/DDColor at a pinned commit.\n\nOnly the standard library is used, so this step needs no packages. Anything\nalready complete is skipped, and a broken download never leaves a half file\nbehind: data goes to *.part and is renamed only once every byte has arrived.\n\u0022\u0022\u0022\n\nimport http.client\nimport shutil\nimport tempfile\nimport time\nimport urllib.error\nimport urllib.request\nimport zipfile\nfrom pathlib import Path, PurePosixPath\n\nfrom ColorAIConfig import ColorAIConfig\n\n\nclass ModelDownloader:\n\tCHUNK = 1024 * 1024\n\tATTEMPTS = 20\n\tUSER_AGENT = \u0022ColorAI-CatNip/1.0\u0022\n\n\tdef __init__(self, config: ColorAIConfig):\n\t\tself.config = config\n\n\tdef download(self) -\u003E Path:\n\t\tself.config.models_dir.mkdir(parents=True, exist_ok=True)\n\t\tfor name in self.config.weights_files:\n\t\t\tself.fetch_file(self.config.weights_url(name), self.config.weights_dir / name)\n\t\tself.fetch_code()\n\t\treturn self.config.weights_dir\n\n\tdef is_complete(self) -\u003E bool:\n\t\tc = self.config\n\t\tweights = all((c.weights_dir / n).is_file() for n in c.weights_files)\n\t\treturn weights and self.code_marker().is_file() \\\n\t\t\tand self.code_marker().read_text().strip() == c.code_commit\n\n\t# -- weights ------------------------------------------------------------\n\n\tdef fetch_file(self, url: str, target: Path) -\u003E Path:\n\t\t\u0022\u0022\u0022Downloads url to target, resuming a broken transfer where it stopped.\n\n\t\tLarge files over long connections do get cut off midway; each retry asks\n\t\tthe server only for the bytes still missing (HTTP Range).\n\t\t\u0022\u0022\u0022\n\t\ttarget.parent.mkdir(parents=True, exist_ok=True)\n\t\tpart = target.with_name(target.name \u002B \u0022.part\u0022)\n\t\tif target.is_file():\n\t\t\tif self.matches_remote(url, target):\n\t\t\t\tprint(\u0022[Pobieranie] %s jest juz na dysku (%s)\u0022 % (target.name, self.size(target.stat().st_size)))\n\t\t\t\treturn target\n\t\t\ttarget.unlink()\n\t\tfor attempt in range(1, self.ATTEMPTS \u002B 1):\n\t\t\thave = part.stat().st_size if part.is_file() else 0\n\t\t\trequest = self.request(url)\n\t\t\tif have:\n\t\t\t\trequest.add_header(\u0022Range\u0022, \u0022bytes=%d-\u0022 % have)\n\t\t\ttry:\n\t\t\t\twith urllib.request.urlopen(request, timeout=60) as response:\n\t\t\t\t\tresumed = have \u003E 0 and response.status == 206\n\t\t\t\t\tif not resumed:\n\t\t\t\t\t\thave = 0\n\t\t\t\t\ttotal = have \u002B int(response.headers.get(\u0022Content-Length\u0022) or 0)\n\t\t\t\t\tif resumed:\n\t\t\t\t\t\tprint(\u0022[Pobieranie] Wznawiam %s od %s\u0022 % (target.name, self.size(have)))\n\t\t\t\t\telse:\n\t\t\t\t\t\tprint(\u0022[Pobieranie] %s  (%s)\u0022 % (url, self.size(total) if total else \u0022rozmiar nieznany\u0022))\n\t\t\t\t\tself.stream(response, part, have, total)\n\t\t\texcept urllib.error.HTTPError as error:\n\t\t\t\tif error.code != 416:\n\t\t\t\t\traise\n\t\t\t\t# The .part is already whole (or longer than the file): start over.\n\t\t\t\tpart.unlink()\n\t\t\t\tcontinue\n\t\t\texcept (OSError, http.client.HTTPException) as error:\n\t\t\t\tprint(\u0022[Pobieranie] Polaczenie przerwane (%s), proba %d/%d\u0022 % (error, attempt, self.ATTEMPTS))\n\t\t\t\ttime.sleep(min(2 * attempt, 10))\n\t\t\t\tcontinue\n\n\t\t\tgot = part.stat().st_size\n\t\t\tif total and got != total:\n\t\t\t\tprint(\u0022[Pobieranie] Pobrano %s z %s, proba %d/%d\u0022 % (self.size(got), self.size(total), attempt, self.ATTEMPTS))\n\t\t\t\tcontinue\n\t\t\tpart.replace(target)\n\t\t\tprint(\u0022[Pobieranie] -\u003E %s\u0022 % target)\n\t\t\treturn target\n\t\traise IOError(\u0022Nie udalo sie pobrac %s po %d probach - uruchom KROK 1 ponownie, wznowi od miejsca przerwania.\u0022 % (target.name, self.ATTEMPTS))\n\n\tdef matches_remote(self, url: str, target: Path) -\u003E bool:\n\t\t\u0022\u0022\u0022True when the file on disk has the size the server reports.\u0022\u0022\u0022\n\t\ttry:\n\t\t\twith urllib.request.urlopen(self.request(url), timeout=60) as response:\n\t\t\t\ttotal = int(response.headers.get(\u0022Content-Length\u0022) or 0)\n\t\texcept OSError:\n\t\t\treturn True  # offline: trust what is already on disk\n\t\treturn total == 0 or target.stat().st_size == total\n\n\tdef stream(self, response, part: Path, done: int, total: int) -\u003E None:\n\t\tlast_print, started, start_bytes = 0.0, time.time(), done\n\t\twith open(part, \u0022ab\u0022 if done else \u0022wb\u0022) as out:\n\t\t\twhile True:\n\t\t\t\tchunk = response.read(self.CHUNK)\n\t\t\t\tif not chunk:\n\t\t\t\t\tbreak\n\t\t\t\tout.write(chunk)\n\t\t\t\tdone \u002B= len(chunk)\n\t\t\t\tnow = time.time()\n\t\t\t\tif now - last_print \u003E= 2 or (total and done == total):\n\t\t\t\t\tlast_print = now\n\t\t\t\t\tspeed = (done - start_bytes) / max(now - started, 1e-6)\n\t\t\t\t\tshare = \u0022 %5.1f%%\u0022 % (100.0 * done / total) if total else \u0022\u0022\n\t\t\t\t\tprint(\u0022[Pobieranie]%s  %s  %s/s\u0022 % (share, self.size(done), self.size(speed)), flush=True)\n\n\t# -- network code ---------------------------------------------------------\n\n\tdef code_marker(self) -\u003E Path:\n\t\treturn self.config.code_dir / \u0022.commit\u0022\n\n\tdef fetch_code(self) -\u003E Path:\n\t\tc = self.config\n\t\tmarker = self.code_marker()\n\t\tif marker.is_file() and marker.read_text().strip() == c.code_commit:\n\t\t\tprint(\u0022[Pobieranie] Kod DDColor (%s) jest juz na dysku\u0022 % c.code_commit[:7])\n\t\t\treturn c.code_dir\n\n\t\twith tempfile.TemporaryDirectory() as tmp:\n\t\t\tarchive = Path(tmp) / \u0022ddcolor.zip\u0022\n\t\t\tself.fetch_file(c.code_url(), archive)\n\t\t\tif c.code_dir.exists():\n\t\t\t\tshutil.rmtree(c.code_dir)\n\t\t\tself.extract_packages(archive, c.code_dir)\n\n\t\tmarker.write_text(c.code_commit)\n\t\tprint(\u0022[Pobieranie] Kod DDColor -\u003E %s\u0022 % c.code_dir)\n\t\treturn c.code_dir\n\n\tdef extract_packages(self, archive: Path, target: Path) -\u003E None:\n\t\t\u0022\u0022\u0022Unpacks only the Python packages the model needs, nothing else.\u0022\u0022\u0022\n\t\twith zipfile.ZipFile(str(archive)) as zf:\n\t\t\tfor member in zf.infolist():\n\t\t\t\tparts = PurePosixPath(member.filename).parts\n\t\t\t\t# Archive layout: DDColor-\u003Ccommit\u003E/\u003Cpackage\u003E/...\n\t\t\t\tif len(parts) \u003C 3 or parts[1] not in self.config.code_packages:\n\t\t\t\t\tcontinue\n\t\t\t\tif member.is_dir() or \u0022..\u0022 in parts or not parts[-1].endswith(\u0022.py\u0022):\n\t\t\t\t\tcontinue\n\t\t\t\tout = target.joinpath(*parts[1:])\n\t\t\t\tout.parent.mkdir(parents=True, exist_ok=True)\n\t\t\t\twith zf.open(member) as src, open(out, \u0022wb\u0022) as dst:\n\t\t\t\t\tshutil.copyfileobj(src, dst)\n\n\t# -- helpers ------------------------------------------------------------\n\n\tdef request(self, url: str) -\u003E urllib.request.Request:\n\t\treturn urllib.request.Request(url, headers={\u0022User-Agent\u0022: self.USER_AGENT})\n\n\t@staticmethod\n\tdef size(n: float) -\u003E str:\n\t\tfor unit in (\u0022B\u0022, \u0022KB\u0022, \u0022MB\u0022, \u0022GB\u0022):\n\t\t\tif n \u003C 1024 or unit == \u0022GB\u0022:\n\t\t\t\treturn \u0022%.1f %s\u0022 % (n, unit)\n\t\t\tn /= 1024.0\n\t\treturn \u0022%.1f GB\u0022 % n\n",
         "codeFile": "",
-        "maxInputNumber": 1,
-        "maxOutputNumber": 1,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "ModelDownloader.md",
         "nodeCathegory": 3,
-        "id": 83,
+        "id": 4,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -226,25 +226,25 @@
           "inputParametersEditorEnabled": true,
           "outputParametersEditorEnabled": true,
           "selectedInputConnectionSettings": {
-            "id": 114,
+            "id": 7,
             "title": "config",
             "connecttionType": 0
           },
           "inputConnectionSettings": [
             {
-              "id": 114,
+              "id": 7,
               "title": "config",
               "connecttionType": 0
             }
           ],
           "selectedOutputConnectionSettings": {
-            "id": 115,
+            "id": 8,
             "title": "download",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 115,
+              "id": 8,
               "title": "download",
               "connecttionType": 0
             }
@@ -282,12 +282,12 @@
       "nodeData": {
         "codeText": "\u0022\u0022\u0022Colorizes one photo with DDColor, locally, on the GPU when it can.\n\nDDColor predicts only the colour (the a/b channels of Lab) and keeps the\nphoto\u0027s own lightness, so detail and resolution stay those of the original -\nthe network looks at a 512x512 copy, its colours are scaled back up and laid\nover the full-size picture. Sepia and black-and-white input both work: only\nthe lightness of the input is used.\n\u0022\u0022\u0022\n\nimport importlib\nimport sys\nimport time\nimport numpy as np\n\nfrom ColorAIConfig import ColorAIConfig\n\n\nclass DDColorColorizer:\n\tdef __init__(self, config: ColorAIConfig):\n\t\tself.config = config\n\t\tself._pipeline = None\n\n\tdef colorize(self, image_bgr: np.ndarray) -\u003E np.ndarray:\n\t\t\u0022\u0022\u0022A BGR uint8 photo in, its coloured BGR uint8 version out.\u0022\u0022\u0022\n\t\tpipeline = self.load()\n\t\tstarted = time.time()\n\t\ttry:\n\t\t\tresult = pipeline.process(image_bgr)\n\t\texcept RuntimeError as error:\n\t\t\t# 4 GB cards can run out of memory on the large model; CPU always fits.\n\t\t\tif \u0022out of memory\u0022 not in str(error).lower() or pipeline.device.type != \u0022cuda\u0022:\n\t\t\t\traise\n\t\t\tprint(\u0022[DDColor] Za malo pamieci GPU - powtarzam na CPU\u0022)\n\t\t\timport torch\n\t\t\ttorch.cuda.empty_cache()\n\t\t\tpipeline.device = torch.device(\u0022cpu\u0022)\n\t\t\tpipeline.model = pipeline.model.to(pipeline.device)\n\t\t\tresult = pipeline.process(image_bgr)\n\t\tprint(\u0022[DDColor] Pokolorowano %dx%d w %.1f s\u0022 % (image_bgr.shape[1], image_bgr.shape[0], time.time() - started))\n\t\treturn result\n\n\tdef load(self):\n\t\tif self._pipeline is not None:\n\t\t\treturn self._pipeline\n\n\t\tc = self.config\n\t\tif not c.weights_path.is_file() or not c.code_dir.is_dir():\n\t\t\traise FileNotFoundError(\u0022Brak modelu w %s - uruchom najpierw KROK 1.\u0022 % c.models_dir)\n\n\t\tif str(c.code_dir) not in sys.path:\n\t\t\tsys.path.insert(0, str(c.code_dir))\n\t\timport torch\n\t\t# Imported by name: ddcolor is the network code KROK 1 downloads into\n\t\t# models/, not a PyPI package. A plain \u0022from ddcolor import\u0022 would make\n\t\t# the Run Engine\u0027s Automatic install mode try to pip install it.\n\t\tddcolor = importlib.import_module(\u0022ddcolor\u0022)\n\t\tDDColor = ddcolor.DDColor\n\t\tColorizationPipeline = ddcolor.ColorizationPipeline\n\t\tbuild_ddcolor_model = ddcolor.build_ddcolor_model\n\n\t\tdevice = self.pick_device(torch)\n\t\tprint(\u0022[DDColor] Wczytuje %s na %s ...\u0022 % (c.weights_path.name, device))\n\t\tstarted = time.time()\n\t\tmodel = build_ddcolor_model(\n\t\t\tDDColor,\n\t\t\tmodel_path=str(c.weights_path),\n\t\t\tinput_size=c.input_size,\n\t\t\tmodel_size=\u0022large\u0022,\n\t\t\tdevice=device,\n\t\t)\n\t\tprint(\u0022[DDColor] Model gotowy w %.1f s\u0022 % (time.time() - started))\n\t\tself._pipeline = ColorizationPipeline(model, input_size=c.input_size, device=device)\n\t\treturn self._pipeline\n\n\t@staticmethod\n\tdef pick_device(torch) -\u003E \u0022torch.device\u0022:\n\t\t\u0022\u0022\u0022CUDA only if this PyTorch build has kernels for the card, else CPU.\n\n\t\tNew PyTorch wheels dropped older cards (a GTX 1050 Ti is sm_61); on such\n\t\ta card CUDA looks available but every kernel launch fails.\n\t\t\u0022\u0022\u0022\n\t\tif not torch.cuda.is_available():\n\t\t\treturn torch.device(\u0022cpu\u0022)\n\t\tmajor, minor = torch.cuda.get_device_capability(0)\n\t\tname = torch.cuda.get_device_name(0)\n\t\tif \u0022sm_%d%d\u0022 % (major, minor) not in torch.cuda.get_arch_list():\n\t\t\tprint(\u0022[DDColor] %s (sm_%d%d) nie jest wspierany przez ta wersje PyTorch - licze na CPU\u0022 % (name, major, minor))\n\t\t\treturn torch.device(\u0022cpu\u0022)\n\t\tprint(\u0022[DDColor] GPU: %s\u0022 % name)\n\t\treturn torch.device(\u0022cuda\u0022)\n",
         "codeFile": "",
-        "maxInputNumber": 1,
-        "maxOutputNumber": 1,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "DDColorColorizer.md",
         "nodeCathegory": 3,
-        "id": 84,
+        "id": 5,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -296,25 +296,25 @@
           "inputParametersEditorEnabled": true,
           "outputParametersEditorEnabled": true,
           "selectedInputConnectionSettings": {
-            "id": 116,
+            "id": 9,
             "title": "config",
             "connecttionType": 0
           },
           "inputConnectionSettings": [
             {
-              "id": 116,
+              "id": 9,
               "title": "config",
               "connecttionType": 0
             }
           ],
           "selectedOutputConnectionSettings": {
-            "id": 117,
+            "id": 10,
             "title": "colorize",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 117,
+              "id": 10,
               "title": "colorize",
               "connecttionType": 0
             }
@@ -352,12 +352,12 @@
       "nodeData": {
         "codeText": "\u0022\u0022\u0022Turns a colour photo into a black-and-white or sepia one - no AI involved.\n\nBlack-and-white is the photo\u0027s luminance (ITU-R BT.601 weights, what OpenCV\nuses). Sepia tints that same luminance with a warm brown, the way a toned\nprint looks, and lifts the blacks a little, as old paper never was pure black.\nBoth are saved as three-channel images, so every viewer and DDColor read them\nthe same way.\n\u0022\u0022\u0022\n\nimport cv2\nimport numpy as np\n\n\nclass PhotoToner:\n\tTONES = (\u0022grayscale\u0022, \u0022sepia\u0022)\n\n\t# Brown of a toned print, as BGR multipliers of the lightness. Red stays at\n\t# 1.0 so highlights turn cream instead of clipping.\n\tSEPIA_BGR = np.array([0.69, 0.86, 1.00], dtype=np.float32)\n\tSEPIA_BLACK = 18.0\n\n\tdef tone(self, image_bgr: np.ndarray, tone: str) -\u003E np.ndarray:\n\t\tif tone == \u0022grayscale\u0022:\n\t\t\treturn self.grayscale(image_bgr)\n\t\tif tone == \u0022sepia\u0022:\n\t\t\treturn self.sepia(image_bgr)\n\t\traise ValueError(\u0022Nieznany ton \u0027%s\u0027 - dozwolone: %s\u0022 % (tone, \u0022, \u0022.join(self.TONES)))\n\n\tdef grayscale(self, image_bgr: np.ndarray) -\u003E np.ndarray:\n\t\tgray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)\n\t\treturn cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)\n\n\tdef sepia(self, image_bgr: np.ndarray) -\u003E np.ndarray:\n\t\tgray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)\n\t\tgray = self.SEPIA_BLACK \u002B gray * (255.0 - self.SEPIA_BLACK) / 255.0\n\t\ttoned = gray[:, :, None] * self.SEPIA_BGR[None, None, :]\n\t\treturn np.clip(toned, 0, 255).astype(np.uint8)\n",
         "codeFile": "",
-        "maxInputNumber": 0,
-        "maxOutputNumber": 1,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "PhotoToner.md",
         "nodeCathegory": 3,
-        "id": 85,
+        "id": 6,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -372,13 +372,13 @@
           },
           "inputConnectionSettings": [],
           "selectedOutputConnectionSettings": {
-            "id": 118,
+            "id": 11,
             "title": "tone",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 118,
+              "id": 11,
               "title": "tone",
               "connecttionType": 0
             }
@@ -414,14 +414,14 @@
     },
     {
       "nodeData": {
-        "codeText": "C:\\Users\\Adam\\Documents\\CatNip Workspace\\ColorAI\\input\\t6.bmp",
+        "codeText": "C:\\Users\\Adam\\Documents\\CatNip Workspace\\ColorAI\\input\\t7.bmp",
         "codeFile": "",
         "maxInputNumber": 0,
-        "maxOutputNumber": 1,
+        "maxOutputNumber": 10,
         "documentationText": "",
         "documentationFile": "Zdj\u0119cie_do_pokolorowania.md",
         "nodeCathegory": 1,
-        "id": 86,
+        "id": 7,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -436,13 +436,13 @@
           },
           "inputConnectionSettings": [],
           "selectedOutputConnectionSettings": {
-            "id": 119,
+            "id": 12,
             "title": "photo_to_colorize",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 119,
+              "id": 12,
               "title": "photo_to_colorize",
               "connecttionType": 0
             }
@@ -481,11 +481,11 @@
         "codeText": "C:\\Users\\Adam\\Documents\\CatNip Workspace\\ColorAI\\input\\270388_pole_kwiaty_drzewo_chmury.jpg",
         "codeFile": "",
         "maxInputNumber": 0,
-        "maxOutputNumber": 1,
+        "maxOutputNumber": 10,
         "documentationText": "",
         "documentationFile": "Zdj\u0119cie_do_postarzenia.md",
         "nodeCathegory": 1,
-        "id": 87,
+        "id": 8,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -500,13 +500,13 @@
           },
           "inputConnectionSettings": [],
           "selectedOutputConnectionSettings": {
-            "id": 120,
+            "id": 13,
             "title": "photo_to_age",
             "connecttionType": 0
           },
           "outputConnectionSettings": [
             {
-              "id": 120,
+              "id": 13,
               "title": "photo_to_age",
               "connecttionType": 0
             }
@@ -544,12 +544,12 @@
       "nodeData": {
         "codeText": "\u0022\u0022\u0022KROK 1 - pobierz model DDColor na dysk.\n\nSciaga wagi ddcolor_modelscope (~870 MB) z Hugging Face i kod sieci z GitHuba\ndo folderu models/. Ponowne uruchomienie niczego nie pobiera drugi raz.\nNie wymaga zadnych pakietow - tylko biblioteka standardowa.\n\u0022\u0022\u0022\n\nfrom ColorAIConfig import ColorAIConfig\nfrom ModelDownloader import ModelDownloader\n\n\ndef main():\n\tprint(\u0022=\u0022 * 72)\n\tprint(\u0022KROK 1/2  POBIERZ MODEL DDColor\u0022)\n\tprint(\u0022=\u0022 * 72)\n\n\tconfig = ColorAIConfig().ensure_dirs()\n\tdownloader = ModelDownloader(config)\n\tdownloader.download()\n\n\tprint(\u0022\u0022)\n\tprint(\u0022[Model] wagi -\u003E %s\u0022 % config.weights_dir)\n\tprint(\u0022[Model] kod  -\u003E %s\u0022 % config.code_dir)\n\tprint(\u0022Gotowe. Teraz: KROK 2 - Koloruj zdjecie (AI).\u0022)\n\n\nif __name__ == \u0022__main__\u0022:\n\tmain()\n",
         "codeFile": "",
-        "maxInputNumber": 2,
-        "maxOutputNumber": 0,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "main_download.md",
         "nodeCathegory": 3,
-        "id": 88,
+        "id": 9,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -558,18 +558,18 @@
           "inputParametersEditorEnabled": true,
           "outputParametersEditorEnabled": false,
           "selectedInputConnectionSettings": {
-            "id": 121,
+            "id": 14,
             "title": "config",
             "connecttionType": 0
           },
           "inputConnectionSettings": [
             {
-              "id": 121,
+              "id": 14,
               "title": "config",
               "connecttionType": 0
             },
             {
-              "id": 122,
+              "id": 15,
               "title": "download",
               "connecttionType": 0
             }
@@ -611,50 +611,55 @@
     },
     {
       "nodeData": {
-        "codeText": "\u0022\u0022\u0022KROK 2 - pokoloruj zdjecie modelem DDColor, lokalnie.\n\nZdjecie wskazuje blok File content \u0022Zdjecie do pokolorowania\u0022. Gdy blok jest\npusty, bierzemy najnowszy obraz z input/, a potem z photos/. Wynik trafia do\noutput/\u003Cnazwa\u003E_color.\u003Crozszerzenie\u003E i jest pokazywany w zakladce Output.\n\nJesli modelu nie ma jeszcze na dysku (np. pierwszy run w swiezym kontenerze),\npobieramy go tak jak KROK 1.\n\u0022\u0022\u0022\n\nfrom ColorAIConfig import ColorAIConfig\nfrom DDColorColorizer import DDColorColorizer\nfrom ImageFiles import ImageFiles\nfrom ModelDownloader import ModelDownloader\nfrom PhotoLocator import PhotoLocator\n\n#: Tytul zlacza bloku File content z wybranym zdjeciem.\nPHOTO_CONNECTOR = \u0022photo_to_colorize\u0022\n\n\ndef main():\n\tprint(\u0022=\u0022 * 72)\n\tprint(\u0022KROK 2/2  KOLORUJ ZDJECIE (DDColor)\u0022)\n\tprint(\u0022=\u0022 * 72)\n\n\tconfig = ColorAIConfig().ensure_dirs()\n\n\tdownloader = ModelDownloader(config)\n\tif not downloader.is_complete():\n\t\tprint(\u0022[Model] Brak modelu na dysku - pobieram (to samo co KROK 1).\u0022)\n\t\tdownloader.download()\n\n\tphoto = PhotoLocator(config).locate(PHOTO_CONNECTOR, [config.input_dir, config.photos_dir])\n\tfiles = ImageFiles(config.jpeg_quality)\n\timage = files.read(photo)\n\tprint(\u0022[Zdjecie] %s  (%dx%d)\u0022 % (photo, image.shape[1], image.shape[0]))\n\n\tcolored = DDColorColorizer(config).colorize(image)\n\n\ttarget = config.output_dir / (\u0022%s_color%s\u0022 % (photo.stem, photo.suffix.lower()))\n\tfiles.write(colored, target)\n\tfiles.preview(\u0022Pokolorowane: %s\u0022 % target.name, image, colored)\n\tprint(\u0022\u0022)\n\tprint(\u0022[Wynik] -\u003E %s\u0022 % target)\n\n\nif __name__ == \u0022__main__\u0022:\n\tmain()\n",
+        "codeText": "\u0022\u0022\u0022KROK 2 - pokoloruj zdjecie modelem DDColor, lokalnie.\n\nZdjecie wskazuje blok File content \u0022Zdjecie do pokolorowania\u0022. Gdy blok jest\npusty, bierzemy najnowszy obraz z input/, a potem z photos/. Wynik trafia do\noutput/\u003Cnazwa\u003E_color.\u003Crozszerzenie\u003E i jest pokazywany w zakladce Output.\n\nKolory DDColor mozna poprawic: ColorAIConfig.grading albo argumenty\nuruchomienia, np. \u0022temperature=15 tint=-15 saturation=1.5 highlight_warmth=70\u0022.\nPrzy wlaczonej korekcie wersja prosto z DDColor trafia obok jako *_color_raw.\n\nJesli modelu nie ma jeszcze na dysku (np. pierwszy run w swiezym kontenerze),\npobieramy go tak jak KROK 1.\n\u0022\u0022\u0022\n\nimport sys\n\nimport numpy as np\n\nfrom ColorAIConfig import ColorAIConfig\nfrom ColorGrader import ColorGrader\nfrom DDColorColorizer import DDColorColorizer\nfrom ImageFiles import ImageFiles\nfrom ModelDownloader import ModelDownloader\nfrom PhotoLocator import PhotoLocator\n\n#: Tytul zlacza bloku File content z wybranym zdjeciem.\nPHOTO_CONNECTOR = \u0022photo_to_colorize\u0022\n\n\ndef main():\n\tprint(\u0022=\u0022 * 72)\n\tprint(\u0022KROK 2/2  KOLORUJ ZDJECIE (DDColor)\u0022)\n\tprint(\u0022=\u0022 * 72)\n\n\tconfig = ColorAIConfig().ensure_dirs()\n\t# Checked before the slow model run, so a typo in an argument fails at once.\n\tgrader = ColorGrader(config, sys.argv[1:])\n\n\tdownloader = ModelDownloader(config)\n\tif not downloader.is_complete():\n\t\tprint(\u0022[Model] Brak modelu na dysku - pobieram (to samo co KROK 1).\u0022)\n\t\tdownloader.download()\n\n\tphoto = PhotoLocator(config).locate(PHOTO_CONNECTOR, [config.input_dir, config.photos_dir])\n\tfiles = ImageFiles(config.jpeg_quality)\n\timage = files.read(photo)\n\tprint(\u0022[Zdjecie] %s  (%dx%d)\u0022 % (photo, image.shape[1], image.shape[0]))\n\n\tcolored = DDColorColorizer(config).colorize(image)\n\tgraded = grader.grade(colored)\n\n\tsuffix = photo.suffix.lower()\n\ttarget = config.output_dir / (\u0022%s_color%s\u0022 % (photo.stem, suffix))\n\tfiles.write(graded, target)\n\tif graded is not colored:\n\t\traw = config.output_dir / (\u0022%s_color_raw%s\u0022 % (photo.stem, suffix))\n\t\tfiles.write(colored, raw)\n\t\tprint(\u0022[Wynik] bez korekty -\u003E %s\u0022 % raw)\n\t\tfiles.show(\u0022DDColor / po korekcie\u0022, np.hstack([colored, graded]))\n\tfiles.preview(\u0022Pokolorowane: %s\u0022 % target.name, image, graded)\n\tprint(\u0022\u0022)\n\tprint(\u0022[Wynik] -\u003E %s\u0022 % target)\n\n\nif __name__ == \u0022__main__\u0022:\n\tmain()\n",
         "codeFile": "",
-        "maxInputNumber": 5,
-        "maxOutputNumber": 0,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "main_colorize.md",
         "nodeCathegory": 3,
-        "id": 89,
+        "id": 10,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
-          "inputNumber": 5,
+          "inputNumber": 6,
           "outputNumber": 0,
           "inputParametersEditorEnabled": true,
           "outputParametersEditorEnabled": false,
           "selectedInputConnectionSettings": {
-            "id": 123,
+            "id": 16,
             "title": "download",
             "connecttionType": 0
           },
           "inputConnectionSettings": [
             {
-              "id": 123,
+              "id": 16,
               "title": "download",
               "connecttionType": 0
             },
             {
-              "id": 124,
+              "id": 17,
               "title": "colorize",
               "connecttionType": 0
             },
             {
-              "id": 125,
+              "id": 18,
               "title": "locate",
               "connecttionType": 0
             },
             {
-              "id": 126,
+              "id": 19,
               "title": "read",
               "connecttionType": 0
             },
             {
-              "id": 127,
+              "id": 20,
               "title": "photo_to_colorize",
+              "connecttionType": 0
+            },
+            {
+              "id": 21,
+              "title": "grade",
               "connecttionType": 0
             }
           ],
@@ -697,12 +702,12 @@
       "nodeData": {
         "codeText": "\u0022\u0022\u0022OPCJONALNIE - zamien zdjecie na czarno-biale albo sepie (bez AI).\n\nSamodzielne narzedzie, niezalezne od krokow 1 i 2: przydaje sie np. do\nprzygotowania zdjecia testowego dla kolorowania. Zdjecie wskazuje blok File\ncontent \u0022Zdjecie do postarzenia\u0022; gdy blok jest pusty, bierzemy najnowszy\nobraz z photos/. Wynik trafia do input/\u003Cnazwa\u003E_sepia.jpg albo\ninput/\u003Cnazwa\u003E_bw.jpg i jest pokazywany w zakladce Output.\n\nTon wybiera argument uruchomienia w Run Engine: \u0022sepia\u0022 albo \u0022grayscale\u0022\n(mozna tez \u0022bw\u0022). Bez argumentu uzywany jest ColorAIConfig.default_tone.\n\u0022\u0022\u0022\n\nimport sys\n\nfrom ColorAIConfig import ColorAIConfig\nfrom ImageFiles import ImageFiles\nfrom PhotoLocator import PhotoLocator\nfrom PhotoToner import PhotoToner\n\n#: Tytul zlacza bloku File content z wybranym zdjeciem.\nPHOTO_CONNECTOR = \u0022photo_to_age\u0022\n\nTONE_ALIASES = {\u0022bw\u0022: \u0022grayscale\u0022, \u0022gray\u0022: \u0022grayscale\u0022, \u0022grey\u0022: \u0022grayscale\u0022,\n\t\u0022czarnobiale\u0022: \u0022grayscale\u0022, \u0022czarno-biale\u0022: \u0022grayscale\u0022}\nFILE_SUFFIX = {\u0022grayscale\u0022: \u0022bw\u0022, \u0022sepia\u0022: \u0022sepia\u0022}\n\n\ndef tone_from_args(argv, default):\n\tfor arg in argv:\n\t\tname = arg.lstrip(\u0022-\u0022).lower()\n\t\tname = TONE_ALIASES.get(name, name)\n\t\tif name in PhotoToner.TONES:\n\t\t\treturn name\n\treturn default\n\n\ndef main():\n\tprint(\u0022=\u0022 * 72)\n\tprint(\u0022OPCJONALNIE  ZDJECIE CZARNO-BIALE / SEPIA (bez AI)\u0022)\n\tprint(\u0022=\u0022 * 72)\n\n\tconfig = ColorAIConfig().ensure_dirs()\n\ttone = tone_from_args(sys.argv[1:], config.default_tone)\n\n\tphoto = PhotoLocator(config).locate(PHOTO_CONNECTOR, [config.photos_dir])\n\tfiles = ImageFiles(config.jpeg_quality)\n\timage = files.read(photo)\n\tprint(\u0022[Zdjecie] %s  (%dx%d)\u0022 % (photo, image.shape[1], image.shape[0]))\n\tprint(\u0022[Ton]     %s\u0022 % tone)\n\n\ttoned = PhotoToner().tone(image, tone)\n\n\ttarget = config.input_dir / (\u0022%s_%s.jpg\u0022 % (photo.stem, FILE_SUFFIX[tone]))\n\tfiles.write(toned, target)\n\tfiles.preview(\u0022%s: %s\u0022 % (tone, target.name), image, toned)\n\tprint(\u0022\u0022)\n\tprint(\u0022[Wynik] -\u003E %s\u0022 % target)\n\n\nif __name__ == \u0022__main__\u0022:\n\tmain()\n",
         "codeFile": "",
-        "maxInputNumber": 5,
-        "maxOutputNumber": 0,
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
         "documentationText": "",
         "documentationFile": "main_tone.md",
         "nodeCathegory": 3,
-        "id": 90,
+        "id": 11,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -711,33 +716,33 @@
           "inputParametersEditorEnabled": true,
           "outputParametersEditorEnabled": false,
           "selectedInputConnectionSettings": {
-            "id": 128,
+            "id": 22,
             "title": "config",
             "connecttionType": 0
           },
           "inputConnectionSettings": [
             {
-              "id": 128,
+              "id": 22,
               "title": "config",
               "connecttionType": 0
             },
             {
-              "id": 129,
+              "id": 23,
               "title": "locate",
               "connecttionType": 0
             },
             {
-              "id": 130,
+              "id": 24,
               "title": "read",
               "connecttionType": 0
             },
             {
-              "id": 131,
+              "id": 25,
               "title": "tone",
               "connecttionType": 0
             },
             {
-              "id": 132,
+              "id": 26,
               "title": "photo_to_age",
               "connecttionType": 0
             }
@@ -786,7 +791,7 @@
         "documentationText": "",
         "documentationFile": "README.md",
         "nodeCathegory": 30,
-        "id": 91,
+        "id": 12,
         "settings": {
           "objectifable": false,
           "canBeMain": false,
@@ -833,113 +838,255 @@
         "targetPath": ""
       },
       "locationX": 60,
-      "locationY": 822
+      "locationY": 820
+    },
+    {
+      "nodeData": {
+        "codeText": "\u0022\u0022\u0022Tonal colour correction settings applied after colorization.\n\nEvery value at its default leaves the colours exactly as DDColor made them.\nThe settings live in ColorAIConfig.grading; KROK 2 run arguments such as\n\u0022temperature=25 saturation=1.3\u0022 override them for one run.\n\u0022\u0022\u0022\n\nfrom dataclasses import dataclass, fields, replace\nfrom typing import Dict, Iterable, Tuple\n\n\n@dataclass(frozen=True)\nclass ColorGrading:\n\ttemperature: float = 0.0\n\ttint: float = 0.0\n\tsaturation: float = 1.0\n\tvibrance: float = 0.0\n\thue_shift: float = 0.0\n\thighlight_warmth: float = 0.0\n\tshadow_warmth: float = 0.0\n\tcast_removal: float = 0.0\n\n\t# Allowed range of each setting, inclusive.\n\tRANGES = {\n\t\t\u0022temperature\u0022: (-100.0, 100.0),\n\t\t\u0022tint\u0022: (-100.0, 100.0),\n\t\t\u0022saturation\u0022: (0.0, 3.0),\n\t\t\u0022vibrance\u0022: (-100.0, 100.0),\n\t\t\u0022hue_shift\u0022: (-180.0, 180.0),\n\t\t\u0022highlight_warmth\u0022: (-100.0, 100.0),\n\t\t\u0022shadow_warmth\u0022: (-100.0, 100.0),\n\t\t\u0022cast_removal\u0022: (0.0, 1.0),\n\t}\n\n\tdef __post_init__(self):\n\t\tfor name, (low, high) in self.RANGES.items():\n\t\t\tvalue = getattr(self, name)\n\t\t\tif not low \u003C= value \u003C= high:\n\t\t\t\traise ValueError(\u0022Korekta barw: %s=%g poza zakresem %g..%g\u0022 % (name, value, low, high))\n\n\t@property\n\tdef is_neutral(self) -\u003E bool:\n\t\treturn self == ColorGrading()\n\n\tdef with_args(self, args: Iterable[str]) -\u003E \u0022ColorGrading\u0022:\n\t\t\u0022\u0022\u0022A copy with \u0022name=value\u0022 run arguments applied; other arguments are ignored.\u0022\u0022\u0022\n\t\tnames = [f.name for f in fields(self)]\n\t\tchanges: Dict[str, float] = {}\n\t\tfor arg in args:\n\t\t\tif \u0022=\u0022 not in arg:\n\t\t\t\tcontinue\n\t\t\tname, value = arg.lstrip(\u0022-\u0022).split(\u0022=\u0022, 1)\n\t\t\tname = name.strip().lower().replace(\u0022-\u0022, \u0022_\u0022)\n\t\t\tif name not in names:\n\t\t\t\traise ValueError(\u0022Nieznane ustawienie korekty barw \u0027%s\u0027 - dozwolone: %s\u0022 % (name, \u0022, \u0022.join(names)))\n\t\t\ttry:\n\t\t\t\tchanges[name] = float(value.replace(\u0022,\u0022, \u0022.\u0022))\n\t\t\texcept ValueError:\n\t\t\t\traise ValueError(\u0022Korekta barw: \u0027%s\u0027 nie jest liczba (%s)\u0022 % (value, name))\n\t\treturn replace(self, **changes)\n\n\tdef summary(self) -\u003E str:\n\t\tchanged: Tuple[str, ...] = tuple(\n\t\t\t\u0022%s=%g\u0022 % (f.name, getattr(self, f.name))\n\t\t\tfor f in fields(self) if getattr(self, f.name) != f.default)\n\t\treturn \u0022, \u0022.join(changed) or \u0022brak (kolory DDColor bez zmian)\u0022\n",
+        "codeFile": "",
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
+        "documentationText": "",
+        "documentationFile": "ColorGrading.md",
+        "nodeCathegory": 3,
+        "id": 13,
+        "settings": {
+          "objectifable": false,
+          "canBeMain": false,
+          "inputNumber": 0,
+          "outputNumber": 0,
+          "inputParametersEditorEnabled": false,
+          "outputParametersEditorEnabled": false,
+          "selectedInputConnectionSettings": {
+            "id": 0,
+            "title": "",
+            "connecttionType": 0
+          },
+          "inputConnectionSettings": [],
+          "selectedOutputConnectionSettings": {
+            "id": 0,
+            "title": "",
+            "connecttionType": 0
+          },
+          "outputConnectionSettings": [],
+          "description": "ColorGrading",
+          "isMain": false,
+          "inObjectiveManner": false,
+          "shellType": "Local Shell (system Python)",
+          "sqlScriptType": "MSSQL",
+          "connectionString": "",
+          "inputConstructorRouting": {},
+          "setterMethodNames": {},
+          "outputInputDependencies": {},
+          "disabledInputs": [],
+          "aggregatePrevious": false,
+          "badgeText": "",
+          "badgeColor": "",
+          "fileFormat": "Python",
+          "reportDefinition": "",
+          "dataSchema": "",
+          "interactiveReport": "",
+          "nativeBuildTarget": "",
+          "runCompiled": false,
+          "sourceFolder": "",
+          "mappedFrom": ""
+        },
+        "nodeCategory": 3,
+        "title": "ColorGrading",
+        "targetPath": ""
+      },
+      "locationX": 100,
+      "locationY": 100
+    },
+    {
+      "nodeData": {
+        "codeText": "\u0022\u0022\u0022Adjusts the colours of a colorized photo - white balance, saturation, toning.\n\nWorks in Lab on the a/b (colour) channels only, so the lightness - every\ndetail and the contrast of the original photo - is never touched. DDColor\ngives colour the same way, which is why grading after it is lossless.\n\u0022\u0022\u0022\n\nfrom typing import Sequence\n\nimport cv2\nimport numpy as np\n\nfrom ColorAIConfig import ColorAIConfig\nfrom ColorGrading import ColorGrading\n\n\nclass ColorGrader:\n\t# How far the -100..100 sliders move a/b at their ends (Lab units).\n\tSHIFT_PER_UNIT = 0.30\n\tSPLIT_TONE_PER_UNIT = 0.40\n\t# Chroma above which vibrance no longer boosts a colour.\n\tVIBRANCE_CHROMA = 60.0\n\n\tdef __init__(self, config: ColorAIConfig, args: Sequence[str] = ()):\n\t\tself.config = config\n\t\tself.grading = config.grading.with_args(args)\n\n\tdef grade(self, image_bgr: np.ndarray) -\u003E np.ndarray:\n\t\t\u0022\u0022\u0022A BGR uint8 photo in, the colour-corrected BGR uint8 photo out.\u0022\u0022\u0022\n\t\tg = self.grading\n\t\tprint(\u0022[Korekta barw] %s\u0022 % g.summary())\n\t\tif g.is_neutral:\n\t\t\treturn image_bgr\n\n\t\tlab = cv2.cvtColor(image_bgr.astype(np.float32) / 255.0, cv2.COLOR_BGR2Lab)\n\t\tlightness, a, b = cv2.split(lab)\n\n\t\ta, b = self._remove_cast(a, b, g.cast_removal)\n\t\ta = a \u002B g.tint * self.SHIFT_PER_UNIT\n\t\tb = b \u002B g.temperature * self.SHIFT_PER_UNIT\n\t\ta, b = self._split_tone(lightness, a, b, g.highlight_warmth, g.shadow_warmth)\n\t\ta, b = self._rotate_hue(a, b, g.hue_shift)\n\t\ta, b = self._scale_chroma(a, b, g.saturation, g.vibrance)\n\n\t\tlab = cv2.merge([lightness, np.clip(a, -127, 127), np.clip(b, -127, 127)])\n\t\tbgr = cv2.cvtColor(lab, cv2.COLOR_Lab2BGR)\n\t\treturn np.clip(bgr * 255.0 \u002B 0.5, 0, 255).astype(np.uint8)\n\n\t@staticmethod\n\tdef _remove_cast(a: np.ndarray, b: np.ndarray, amount: float):\n\t\t# Gray world: the average colour of a photo is close to neutral.\n\t\treturn a - amount * float(np.mean(a)), b - amount * float(np.mean(b))\n\n\tdef _split_tone(self, lightness: np.ndarray, a: np.ndarray, b: np.ndarray, highlights: float, shadows: float):\n\t\thighlight_mask = self._smoothstep((lightness - 50.0) / 50.0)\n\t\tshadow_mask = self._smoothstep((50.0 - lightness) / 50.0)\n\t\twarmth = (highlights * highlight_mask \u002B shadows * shadow_mask) * self.SPLIT_TONE_PER_UNIT\n\t\t# Warm is mostly yellow (\u002Bb) with a touch of red (\u002Ba), as in firelight.\n\t\treturn a \u002B 0.2 * warmth, b \u002B warmth\n\n\t@staticmethod\n\tdef _rotate_hue(a: np.ndarray, b: np.ndarray, degrees: float):\n\t\tif degrees == 0:\n\t\t\treturn a, b\n\t\tangle = np.deg2rad(degrees)\n\t\tcos, sin = np.cos(angle), np.sin(angle)\n\t\treturn a * cos - b * sin, a * sin \u002B b * cos\n\n\tdef _scale_chroma(self, a: np.ndarray, b: np.ndarray, saturation: float, vibrance: float):\n\t\tchroma = np.hypot(a, b)\n\t\tmuted = 1.0 - np.clip(chroma / self.VIBRANCE_CHROMA, 0.0, 1.0)\n\t\tfactor = saturation * (1.0 \u002B vibrance / 100.0 * muted)\n\t\treturn a * factor, b * factor\n\n\t@staticmethod\n\tdef _smoothstep(x: np.ndarray) -\u003E np.ndarray:\n\t\tx = np.clip(x, 0.0, 1.0)\n\t\treturn x * x * (3.0 - 2.0 * x)\n",
+        "codeFile": "",
+        "maxInputNumber": 50,
+        "maxOutputNumber": 50,
+        "documentationText": "",
+        "documentationFile": "ColorGrader.md",
+        "nodeCathegory": 3,
+        "id": 14,
+        "settings": {
+          "objectifable": false,
+          "canBeMain": false,
+          "inputNumber": 1,
+          "outputNumber": 1,
+          "inputParametersEditorEnabled": true,
+          "outputParametersEditorEnabled": true,
+          "selectedInputConnectionSettings": {
+            "id": 27,
+            "title": "config",
+            "connecttionType": 0
+          },
+          "inputConnectionSettings": [
+            {
+              "id": 27,
+              "title": "config",
+              "connecttionType": 0
+            }
+          ],
+          "selectedOutputConnectionSettings": {
+            "id": 28,
+            "title": "grade",
+            "connecttionType": 0
+          },
+          "outputConnectionSettings": [
+            {
+              "id": 28,
+              "title": "grade",
+              "connecttionType": 0
+            }
+          ],
+          "description": "ColorGrader",
+          "isMain": false,
+          "inObjectiveManner": false,
+          "shellType": "Local Shell (system Python)",
+          "sqlScriptType": "MSSQL",
+          "connectionString": "",
+          "inputConstructorRouting": {},
+          "setterMethodNames": {},
+          "outputInputDependencies": {},
+          "disabledInputs": [],
+          "aggregatePrevious": false,
+          "badgeText": "",
+          "badgeColor": "",
+          "fileFormat": "Python",
+          "reportDefinition": "",
+          "dataSchema": "",
+          "interactiveReport": "",
+          "nativeBuildTarget": "",
+          "runCompiled": false,
+          "sourceFolder": "",
+          "mappedFrom": ""
+        },
+        "nodeCategory": 3,
+        "title": "ColorGrader",
+        "targetPath": ""
+      },
+      "locationX": 100,
+      "locationY": 100
     }
   ],
   "connections": [
     {
-      "sourceNodeId": 80,
+      "sourceNodeId": 1,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 82,
+      "targetNodeId": 3,
       "targetConnectorIndex": 0,
       "isChosen": false
     },
     {
-      "sourceNodeId": 80,
+      "sourceNodeId": 1,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 83,
+      "targetNodeId": 4,
       "targetConnectorIndex": 0,
       "isChosen": false
     },
     {
-      "sourceNodeId": 80,
+      "sourceNodeId": 1,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 84,
+      "targetNodeId": 5,
       "targetConnectorIndex": 0,
       "isChosen": false
     },
     {
-      "sourceNodeId": 80,
+      "sourceNodeId": 1,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 88,
+      "targetNodeId": 9,
       "targetConnectorIndex": 0,
       "isChosen": false
     },
     {
-      "sourceNodeId": 80,
+      "sourceNodeId": 1,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 90,
+      "targetNodeId": 11,
       "targetConnectorIndex": 0,
       "isChosen": false
     },
     {
-      "sourceNodeId": 83,
+      "sourceNodeId": 4,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 88,
+      "targetNodeId": 9,
       "targetConnectorIndex": 1,
       "isChosen": false
     },
     {
-      "sourceNodeId": 83,
+      "sourceNodeId": 4,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 89,
+      "targetNodeId": 10,
       "targetConnectorIndex": 0,
       "isChosen": false
     },
     {
-      "sourceNodeId": 84,
+      "sourceNodeId": 5,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 89,
+      "targetNodeId": 10,
       "targetConnectorIndex": 1,
       "isChosen": false
     },
     {
-      "sourceNodeId": 82,
+      "sourceNodeId": 3,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 89,
+      "targetNodeId": 10,
       "targetConnectorIndex": 2,
       "isChosen": false
     },
     {
-      "sourceNodeId": 81,
+      "sourceNodeId": 2,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 89,
+      "targetNodeId": 10,
       "targetConnectorIndex": 3,
       "isChosen": false
     },
     {
-      "sourceNodeId": 86,
+      "sourceNodeId": 7,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 89,
+      "targetNodeId": 10,
       "targetConnectorIndex": 4,
       "isChosen": false
     },
     {
-      "sourceNodeId": 82,
+      "sourceNodeId": 3,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 90,
+      "targetNodeId": 11,
       "targetConnectorIndex": 1,
       "isChosen": false
     },
     {
-      "sourceNodeId": 81,
+      "sourceNodeId": 2,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 90,
+      "targetNodeId": 11,
       "targetConnectorIndex": 2,
       "isChosen": false
     },
     {
-      "sourceNodeId": 85,
+      "sourceNodeId": 6,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 90,
+      "targetNodeId": 11,
       "targetConnectorIndex": 3,
       "isChosen": false
     },
     {
-      "sourceNodeId": 87,
+      "sourceNodeId": 8,
       "sourceConnectorIndex": 0,
-      "targetNodeId": 90,
+      "targetNodeId": 11,
       "targetConnectorIndex": 4,
+      "isChosen": false
+    },
+    {
+      "sourceNodeId": 1,
+      "sourceConnectorIndex": 0,
+      "targetNodeId": 14,
+      "targetConnectorIndex": 0,
+      "isChosen": false
+    },
+    {
+      "sourceNodeId": 14,
+      "sourceConnectorIndex": 0,
+      "targetNodeId": 10,
+      "targetConnectorIndex": 5,
       "isChosen": false
     }
   ],
@@ -949,7 +1096,7 @@
   "engineSettings": [
     {
       "name": "main_1",
-      "filePath": "C:\\Users\\Adam\\Documents\\CatNip Workspace\\ColorAI\\main_1.py",
+      "filePath": "main_1.py",
       "isSelected": false,
       "environmentId": "python:3.11-slim",
       "runMode": "Code Run",
@@ -957,36 +1104,36 @@
       "memoryLimitMb": 1024,
       "installMode": "Manual",
       "manualPackages": "",
-      "dockerImage": "python:3.11-slim",
+      "dockerImage": "catnip-colorai:python-3-11-slim",
       "newDockerImageName": "",
       "showImageParametersOnRun": false,
       "runInstance": ""
     },
     {
       "name": "main_2",
-      "filePath": "C:\\Users\\Adam\\Documents\\CatNip Workspace\\ColorAI\\main_2.py",
+      "filePath": "main_2.py",
       "isSelected": true,
       "environmentId": "python:3.11-slim",
       "runMode": "Code Run",
       "timeoutSeconds": 3600,
       "memoryLimitMb": 8192,
       "installMode": "Manual",
-      "manualPackages": "torch torchvision numpy opencv-python-headless",
-      "dockerImage": "python:3.11-slim",
+      "manualPackages": "torch\ntorchvision\nnumpy\nopencv-python-headless",
+      "dockerImage": "catnip-colorai:python-3-11-slim",
       "newDockerImageName": "",
       "showImageParametersOnRun": false,
       "runInstance": ""
     },
     {
       "name": "main_3",
-      "filePath": "C:\\Users\\Adam\\Documents\\CatNip Workspace\\ColorAI\\main_3.py",
+      "filePath": "main_3.py",
       "isSelected": false,
       "environmentId": "python:3.11-slim",
       "runMode": "Code Run",
       "timeoutSeconds": 600,
       "memoryLimitMb": 1024,
       "installMode": "Manual",
-      "manualPackages": "numpy opencv-python-headless",
+      "manualPackages": "numpy\nopencv-python-headless",
       "dockerImage": "",
       "newDockerImageName": "",
       "showImageParametersOnRun": false,

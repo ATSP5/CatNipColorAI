@@ -24,7 +24,7 @@ klasa w osobnym pliku `.py` z własną stroną dokumentacji `.md`.
 | Skrypt | Blok w CatNip | Co robi | Pakiety |
 |---|---|---|---|
 | `main_1.py` | **KROK 1 - Pobierz model** | Pobiera wagi DDColor (~870 MB) z Hugging Face i kod sieci z GitHuba do `models/`. Wystarczy raz; przerwane pobieranie jest wznawiane. | brak (biblioteka standardowa) |
-| `main_2.py` | **KROK 2 - Koloruj zdjęcie (AI)** | Koloruje zdjęcie, zapisuje `output/<nazwa>_color.<rozszerzenie>` i pokazuje wynik oraz porównanie „przed / po”. Bez modelu na dysku najpierw go pobiera. | `torch`, `torchvision`, `numpy`, `opencv-python-headless` |
+| `main_2.py` | **KROK 2 - Koloruj zdjęcie (AI)** | Koloruje zdjęcie, opcjonalnie poprawia barwy (korekta tonalna), zapisuje `output/<nazwa>_color.<rozszerzenie>` i pokazuje wynik oraz porównanie „przed / po”. Bez modelu na dysku najpierw go pobiera. | `torch`, `torchvision`, `numpy`, `opencv-python-headless` |
 | `main_3.py` | **Opcjonalnie - Czarno-białe / sepia** | Zamienia kolorowe zdjęcie na sepię albo czarno-białe i zapisuje je w `input/` jako `<nazwa>_sepia.jpg` / `<nazwa>_bw.jpg`. | `numpy`, `opencv-python-headless` |
 
 ## Wymagania
@@ -72,6 +72,7 @@ instrukcji na [pytorch.org](https://pytorch.org/get-started/locally/), a dopiero
 ```bash
 python main_1.py              # KROK 1: pobierz model (raz)
 python main_2.py              # KROK 2: pokoloruj zdjęcie
+python main_2.py temperature=15 tint=-15 saturation=1.5 highlight_warmth=70   # z korektą barw
 python main_3.py sepia        # opcjonalnie: sepia (albo: grayscale / bw)
 ```
 
@@ -101,6 +102,8 @@ flowchart LR
     D --> M1
     D --> M2["KROK 2 - Koloruj zdjęcie (main_2.py)"]
     K --> M2
+    C --> G[ColorGrader]
+    G --> M2
     L --> M2
     I[Image Files] --> M2
     Z1[Zdjęcie do pokolorowania] --> M2
@@ -113,11 +116,13 @@ flowchart LR
 
 | Blok | Plik | Do czego służy |
 |---|---|---|
-| Config | `ColorAIConfig.py` | Wszystkie ścieżki i ustawienia: foldery, repozytoria modelu, przypięty commit kodu sieci, rozmiar wejścia, domyślny ton, jakość JPEG. |
+| Config | `ColorAIConfig.py` | Wszystkie ścieżki i ustawienia (foldery, model, rozmiar wejścia, ton, jakość JPEG, korekta barw), edytowalne w panelu INITIALISER. |
 | Image Files | `ImageFiles.py` | Odczyt i zapis obrazów (OpenCV), także ze ścieżek z polskimi znakami; uwzględnia obrót EXIF; podgląd w zakładce Output. |
 | Photo Locator | `PhotoLocator.py` | Znajduje zdjęcie wskazane w bloku File content, po nazwie albo najnowsze w folderze. |
 | Model Downloader | `ModelDownloader.py` | Pobiera wagi i kod sieci z wznawianiem przerwanego transferu; pomija to, co już jest. |
 | DDColor Colorizer | `DDColorColorizer.py` | Wczytuje model raz i koloruje zdjęcie na GPU albo CPU (z powrotem na CPU przy braku pamięci GPU). |
+| ColorGrader | `ColorGrader.py` | Korekta tonalna barw po DDColor (balans bieli, nasycenie, vibrance, odcień, tonowanie świateł i cieni, usuwanie dominanty) — tylko kanały a/b Lab, jasność i szczegóły bez zmian. |
+| ColorGrading | `ColorGrading.py` | Rekord z ustawieniami korekty barw i ich zakresami; bez złączy. Config buduje go ze swoich parametrów, ColorGrader go stosuje. |
 | Photo Toner | `PhotoToner.py` | Czarno-białe (luminancja BT.601) albo sepia z lekko podniesioną czernią. |
 | Zdjęcie do pokolorowania | — | Blok File content: zdjęcie dla KROKU 2. |
 | Zdjęcie do postarzenia | — | Blok File content: zdjęcie dla narzędzia sepii. |
@@ -139,16 +144,46 @@ Każdy blok ma swoją szczegółową dokumentację w pliku `.md` o tej samej naz
 
 ## Konfiguracja
 
-Ustawienia są w `ColorAIConfig.py` (blok **Config**):
+Wszystkie ustawienia są parametrami `__init__` klasy `ColorAIConfig` (blok **Config**, plik `ColorAIConfig.py`).
+W CatNip zmienia się je w panelu **INITIALISER** bloku Config: **Refresh** wczytuje wartości z kodu, a po
+zmianie **Apply** zapisuje je z powrotem. Bez CatNip zmienia się wartości domyślne w tej linii `__init__`.
+Złe ustawienie zatrzymuje run od razu, z czytelnym komunikatem.
 
-| Parametr | Domyślnie | Znaczenie |
-|---|---|---|
-| `weights_repo` | `piddnad/ddcolor_modelscope` | Wagi z Hugging Face. Inne warianty autorów: `piddnad/ddcolor_artistic` (żywsze kolory), `piddnad/ddcolor_paper` (wersja z publikacji). Po zmianie uruchom ponownie KROK 1. |
-| `code_repo`, `code_commit` | `piddnad/DDColor`, `2adb63f…` | Kod sieci przypięty do jednego commita, żeby późniejsze zmiany autorów nie zmieniły działania. |
-| `input_size` | `512` | Rozmiar, w jakim sieć ogląda zdjęcie. |
-| `default_tone` | `sepia` | Ton narzędzia postarzania bez argumentu (`sepia` albo `grayscale`). |
-| `jpeg_quality` | `95` | Jakość zapisu JPEG. |
-| `models_folder`, `input_folder`, `output_folder`, `photos_folder` | `models`, `input`, `output`, `photos` | Nazwy folderów względem folderu projektu. |
+| Parametr | Domyślnie | Zakres | Działanie |
+|---|---|---|---|
+| `project_dir` | `""` | ścieżka albo pusto | Folder projektu; pusto = folder z `ColorAI.catnip` |
+| `models_folder`, `input_folder`, `output_folder`, `photos_folder` | `models`, `input`, `output`, `photos` | nazwy folderów | Foldery względem folderu projektu |
+| `weights_repo` | `piddnad/ddcolor_modelscope` | repozytorium HF | Wariant modelu. Inne warianty autorów: `piddnad/ddcolor_artistic` (żywsze kolory), `piddnad/ddcolor_paper` (wersja z publikacji). Po zmianie uruchom ponownie KROK 1 |
+| `weights_files` | `("pytorch_model.bin", "config.json")` | krotka nazw | Pliki wag; pierwszy to wagi |
+| `code_repo`, `code_commit` | `piddnad/DDColor`, `2adb63f…` | repozytorium + commit | Kod sieci przypięty do jednego commita, żeby późniejsze zmiany autorów nie zmieniły działania |
+| `code_packages` | `("ddcolor", "basicsr")` | krotka nazw | Pakiety wypakowywane z archiwum kodu |
+| `input_size` | `512` | wielokrotność 32, ≥ 64 | Rozmiar, w jakim sieć ogląda zdjęcie |
+| `default_tone` | `sepia` | `sepia`, `grayscale` | Ton narzędzia postarzania bez argumentu |
+| `jpeg_quality` | `95` | 1…100 | Jakość zapisu JPEG |
+| `temperature` | `0` | −100…100 | Korekta barw: + cieplej (żółć), − chłodniej (błękit) |
+| `tint` | `0` | −100…100 | Korekta barw: + magenta, − zieleń (usuwa fioletowy nalot) |
+| `saturation` | `1.0` | 0…3 | Korekta barw: mnożnik nasycenia; 0 = czarno-białe |
+| `vibrance` | `0` | −100…100 | Korekta barw: wzmacnia głównie blade barwy |
+| `hue_shift` | `0` | −180…180 | Korekta barw: obrót odcieni w stopniach |
+| `highlight_warmth` | `0` | −100…100 | Korekta barw: ociepla (+) lub chłodzi (−) jasne partie |
+| `shadow_warmth` | `0` | −100…100 | Korekta barw: ociepla (+) lub chłodzi (−) ciemne partie |
+| `cast_removal` | `0` | 0…1 | Korekta barw: usuwa dominantę barwną („szary świat”) |
+| `image_extensions` | `(".jpg", …, ".webp")` | krotka rozszerzeń | Pliki uznawane za zdjęcia |
+
+### Korekta tonalna barw (KROK 2)
+
+DDColor zgaduje kolory i czasem daje zdjęcie zbyt chłodne, sine albo blade. Parametry korekty z tabeli
+(`temperature` … `cast_removal`) dostrajają wynik bez ponownego kolorowania przez model. Domyślne wartości
+niczego nie zmieniają. Ustawia się je na stałe w INITIALISER bloku Config albo na jeden run jako argumenty
+KROKU 2 (w CatNip: Run Engine → argumenty), które nadpisują wartości z Config:
+
+```bash
+python main_2.py temperature=15 tint=-15 saturation=1.5 highlight_warmth=70 shadow_warmth=-20
+```
+
+Korekta zmienia tylko barwę (kanały a/b Lab), nigdy jasności ani szczegółów. Gdy jest włączona, wynik
+prosto z modelu zapisywany jest obok jako `<nazwa>_color_raw`. Wartość spoza zakresu albo nieznana nazwa
+zatrzymuje run od razu, przed wczytaniem modelu.
 
 ## Podziękowania i licencje
 
